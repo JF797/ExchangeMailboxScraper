@@ -7,9 +7,26 @@
 # Credentials should be in line with admin account linked to Office365 for business account.
 # If you have your own credentials already, please make sure they are stored with a secure password under the filename 'credentials.xml' in this directory.
 
+
+# Function to restart script
+# Needed to apply changes to directory when dealing with files
+
+function restartScript {
+    Write-Host "The script will now restart."
+    pause
+    Clear-Host
+    .\script.ps1
+
+}
+
+# Function to create user credentials to then be saved in file
+# Credentials are stored in secure XML file using Microsoft 'Secure String' function
+# Once exported as an object-like variable, it's then reimported to be used as normal
+
 function createCredentials {
 
     $credUser = Read-Host -Prompt "Please enter the username"
+    addSuffix
     $credPass = Read-Host -AsSecureString -Prompt "Please enter the password"
     $credUser, $credPass | Export-Clixml -Path .\credentials.xml
     $Script:loginCreds = Import-Clixml -path .\credentials.xml
@@ -18,11 +35,14 @@ function createCredentials {
 
 }
 
+# Widely used function to check if there are credentials present in directory.
+# If no 'credentials.xml' file is present, the function will return with false.
+# This could be implemented as a function with a parameter as it's called more than once with only 2 outcomes.
+
 function checkForCredentials {
 
     write-host "Checking for present credential file"
     $Script:credentials = @(Get-ChildItem -path .\credentials.xml -ErrorAction SilentlyContinue)
-    Write-Host $credentials
     if (!$credentials) {
         write-host "no credentials present, please create from menu"
         pause
@@ -34,6 +54,10 @@ function checkForCredentials {
     }
 }
 
+# Clear credentials from local directory.
+# Essentially just deletes the file that holds the XML details for the user login.
+# Need to restart script to allow directory to update.
+
 function clearCredentialsInFile {
 
     Write-Host "Checking first if file exists"
@@ -44,12 +68,13 @@ function clearCredentialsInFile {
     else {
         Remove-Item -Path .\credentials.xml -Force
         Write-Host "Credentials have been removed"
-        pause
+        restartScript
     }
 
 }    
 
-# Mailboxes
+# Grab all info for account mailboxes under Exhchange.
+# Loops through each instance of a user and appends data to an array which will then be exported to a CSV file
 
 function grabMailboxes {
 
@@ -74,7 +99,9 @@ function grabMailboxes {
 
 } 
 
-# Distribution lists
+# Grab all info for Distribution Lists and groups.
+# Loops through each instance of a group and appends data to an array which will then be exported to a CSV file
+# There is then a second, nested loop that will go through the group and add the details of each specific user in this group.
 
 function grabDistributionLists {
 
@@ -101,6 +128,31 @@ function grabDistributionLists {
 
 }
 
+# Function that will check the added username variable. If this doesn't contain the domain suffix then it will be added with user input.
+# However, if the user has already added an account with their suffix, then it just returns nothing.
+# This is required as the sign in using 'connect exchangeonline' requires a full sign in information for Office365.
+# This could be implemented better to be able to detect if users have entered either a username with the @, or with the .co* suffix, and work accordingly.
+
+function addSuffix {
+
+    if ($credUser.Contains("@") -and $credUser.Contains(".co")) {
+        return
+    }
+    else {
+        write-host "It looks like you have entered a short username."
+        Write-Host "You must make sure this is the full domain username."
+        write-host "pleae add the domain you are in (please ensure to add .com/.co.uk) (e.g. 'microsoft.com')"
+        $domain = Read-Host ">>>"
+        $credUser = $credUser+ "@" + $domain
+    }
+    write-host "Thank you."
+    Write-Host "username is now:" $credUser
+}
+
+# Main menu function that the user will start at. 
+# User options are distribed in function.
+# User has option to add credentials if they don't exist, and remove if they do.
+# User can also exit.
 
 function mainMenu {
 
@@ -128,9 +180,8 @@ function mainMenu {
             write-host "You're right! There are no credentials, let's make you some"
             pause
             createCredentials
-            Write-Host "returning to main menu"
-            pause
-            mainMenu
+            restartScript
+            #mainMenu
         }
         # If there are already credentials, it just goes back to the menu
         else {
@@ -161,10 +212,10 @@ function main {
     checkForCredentials
     Clear-Host
     mainMenu
-    #checkForCredentials
-    #clearCredentialsInFile
 
 }
 
 main
 
+
+# Still need to actually implement option 1 result!! (scanning and exporting)
